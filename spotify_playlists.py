@@ -1,86 +1,8 @@
-import spotify
-import threading
-import os, sys
-import getpass
 import json
 import re
 import time
-import shutil
-
-# The listening event for the session login
-logged_in_event = threading.Event()
-def logged_in_listener(session, error_type):
-	logged_in_event.set()
-
-def save_session_blob(session, bytestring):
-	"""Get the blob of the current session and save it to
-		file for quick loading next time.
-
-		Callback for spotify.SessionEvent.CREDENTIALS_BLOB_UPDATED"""
-	
-	print 'Saving session bytestring ... '
-	
-	# Open file, write, then close
-	f = open('.session_blob', 'w')
-	f.write(bytestring)
-	f.close()
-	
-	return
-
-def get_session_blob():
-	"""Load the session blob, if it exists"""
-	# Check to see if file exists
-	if os.path.exists('.session_blob'):
-		# If so, read the data from the file and return
-		f = open('.session_blob', 'r')
-		res = f.read()
-		f.close()
-		
-		return res
-	else:
-		return None
-
-def spotify_login(user):
-	print 'Logging in with user: %s' % user
-
-	# set up config
-	config = spotify.Config()
-	config.user_agent = 'Test'
-	
-	# set up the session
-	session = spotify.Session(config=config)
-
-	# register callbacks for the session events
-	session.on(spotify.SessionEvent.LOGGED_IN, logged_in_listener)
-
-	# look for a session blob
-	blob = get_session_blob()
-
-	# handle the case where there is no blob yet
-	if blob == None:
-		print 'No blob exists yet'
-		pwd = getpass.getpass('Enter device password: ')
-
-	# logging in with password or session blob?
-	# sometimes there is a timeout. If so, end.
-	try:
-		# log in with blob
-		if blob != None:
-			session.login(user, None, False, blob)
-		# log in with password
-		else:
-			session.on(spotify.SessionEvent.CREDENTIALS_BLOB_UPDATED, save_session_blob)
-			session.login(user, pwd, False)
-
-	except spotify.error.Timeout, e:
-		print e.strerror
-		print 'Exiting ...'
-		sys.exit(1)
-
-	while not logged_in_event.wait(0.1):
-		session.process_events()
-
-	return session
+from SpotifyWrapper import SpotifyWrapper
+import spotify
 
 def get_playlist_tracks(playlist):
 	"""Return a list list of track objects for the specified playlist"""
@@ -123,21 +45,13 @@ def get_playlist_tracks(playlist):
 
 	return pl
 
-def cleanup():
-	"""Temporary files are left behind in /tmp. Remove them."""
-	print '\nRemoving tmp/ ...'
-
-	try:
-		shutil.rmtree('tmp/')
-	except:
-		print 'Could not remove tmp/ directory.'
-
-	return
-
 def get_all_playlists():
 	"""Get the tracks from the starred playlist"""
 	
-	session = spotify_login('1230966079')
+	SW = SpotifyWrapper('1230966079')
+	SW.login()
+
+	session = SW.session
 
 	# load information for the user
 	user = session.user.load(20)
@@ -180,7 +94,7 @@ def get_all_playlists():
 
 	# cleanup the tmp directory left behind
 	time.sleep(1)
-	cleanup()
+	SW.cleanup()
 
 	return
 
